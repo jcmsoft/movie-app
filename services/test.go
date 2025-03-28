@@ -10,5 +10,5 @@ func main() {
 	denzel := client.NewClientWithId(3, "Denzel", "Washington", "denzel@washington.com")
 	equalizer := movie.NewMovieWithId(11, "Equalizer II", 34.98)
 
-	favoriteService.AddClientFavoriteMovie(denzel, equalizer)
+	favoriteService.AddFavoriteMovie(int32(denzel.Id), int32(equalizer.Id))
 }

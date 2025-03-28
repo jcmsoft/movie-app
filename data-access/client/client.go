@@ -89,11 +89,6 @@ func GetClientByEmail(email string) (Client, error) {
 }
 
 func AddClient(client Client) Client {
-	exist, foundClient := IsClientExist(client.Email)
-	if exist {
-		return foundClient
-	}
-
 	db := handler.GetDatabaseConnection()
 	defer handler.CloseDBConnection(db)
 
@@ -125,11 +120,6 @@ func IsClientExist(email string) (bool, Client) {
 }
 
 func UpdateClient(client Client) {
-	exist, _ := IsClientExist(client.Email)
-	if !exist {
-		log.Println("This client does not exist")
-		return
-	}
 	db := handler.GetDatabaseConnection()
 	defer handler.CloseDBConnection(db)
 

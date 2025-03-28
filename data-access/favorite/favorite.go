@@ -50,11 +50,11 @@ func DeleteFavoriteMovie(client client.Client, movie movie.Movie) {
 	}
 }
 
-func GetClientFavoriteMovies(client client.Client) []movie.Movie {
+func GetClientFavoriteMovies(clientId int) []movie.Movie {
 	db := handler.GetDatabaseConnection()
 	defer handler.CloseDBConnection(db)
 
-	rows, err := db.Query("SELECT movie_id FROM favorite_movie WHERE client_id = ?", client.Id)
+	rows, err := db.Query("SELECT movie_id FROM favorite_movie WHERE client_id = ?", clientId)
 	if err != nil {
 		log.Fatalf("An error occured while querying the database %s", err)
 	}

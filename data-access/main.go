@@ -37,7 +37,7 @@ func main() {
 	printItems(client.GetAllClients())
 
 	fmt.Println("================CLIENTS FAVORITE MOVIES====================")
-	fmt.Printf("%s's favorite movies: %v \n", mike.FirstName, favorite.GetClientFavoriteMovies(mike))
-	fmt.Printf("%s's favorite movies: %v \n", jon.FirstName, favorite.GetClientFavoriteMovies(jon))
-	fmt.Printf("%s's favorite movies: %v \n", denzel.FirstName, favorite.GetClientFavoriteMovies(denzel))
+	fmt.Printf("%s's favorite movies: %v \n", mike.FirstName, favorite.GetClientFavoriteMovies(mike.Id))
+	fmt.Printf("%s's favorite movies: %v \n", jon.FirstName, favorite.GetClientFavoriteMovies(jon.Id))
+	fmt.Printf("%s's favorite movies: %v \n", denzel.FirstName, favorite.GetClientFavoriteMovies(denzel.Id))
 }

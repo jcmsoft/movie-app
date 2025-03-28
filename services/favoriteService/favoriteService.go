@@ -11,10 +11,51 @@ import (
 	"time"
 )
 
+type FavoriteMovieProtoServiceServer struct {
+	protoServices.UnimplementedFavoriteMovieProtoServiceServer
+}
+
 // AddClientFavoriteMovie adds a movie to a client's favorites
-func AddClientFavoriteMovie(theClient client.Client, favoriteMovie movie.Movie) {
-	conn, _ := OpenConnection()
-	defer CloseConnection(conn)
+func (csp *FavoriteMovieProtoServiceServer) AddClientFavoriteMovie(ctx context.Context, request *protoServices.FavoriteMovieRequest) (*protoServices.StatusResponse, error) {
+	log.Println("AddFavorite from FavoriteMovieProtoServiceServer called with request: ", request)
+	success := AddFavoriteMovie(request.ClientId, request.MovieId)
+
+	return &protoServices.StatusResponse{
+		Success: success,
+	}, nil
+}
+
+func (csp *FavoriteMovieProtoServiceServer) RemoveClientFavoriteMovie(ctx context.Context, request *protoServices.FavoriteMovieRequest) (*protoServices.StatusResponse, error) {
+	log.Println("RemoveFavorite from FavoriteMovieProtoServiceServer called with request: ", request)
+	success := removeFavoriteMovie(request.ClientId, request.MovieId)
+
+	return &protoServices.StatusResponse{
+		Success: success,
+	}, nil
+}
+
+func (csp *FavoriteMovieProtoServiceServer) GetClientFavoriteMovies(request *protoServices.IdRequest, stream protoServices.FavoriteMovieProtoService_GetClientFavoriteMoviesServer) error {
+	log.Println("GetFavoritesByClient from FavoriteMovieProtoServiceServer called with request: ", request)
+	movies := favorite.GetClientFavoriteMovies(int(request.Id))
+
+	for _, m := range movies {
+		err := stream.Send(&protoServices.MovieResponse{
+			Id:    int32(m.Id),
+			Title: m.Title,
+			Price: float32(m.Price),
+		})
+		if err != nil {
+			log.Println("Error sending movie: ", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// addFavoriteMovie adds a movie to a client's favorites
+func AddFavoriteMovie(clientId int32, movieId int32) (success bool) {
+	conn, _ := openConnection()
+	defer closeConnection(conn)
 
 	protoClient := protoServices.NewClientProtoServiceClient(conn)
 	protoMovie := protoServices.NewMovieProtoServiceClient(conn)
@@ -22,40 +63,63 @@ func AddClientFavoriteMovie(theClient client.Client, favoriteMovie movie.Movie) 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	clientResp, err := protoClient.IsClientExist(ctx, &protoServices.EmailRequest{Email: theClient.Email})
+	clientResp, err := protoClient.GetClientById(ctx, &protoServices.IdRequest{Id: clientId})
 	if err != nil {
-		log.Fatalf("Error calling IsClientExist: %v", err)
+		log.Printf("Error Getting the client: %v\n", err)
+		return false
 	}
 
-	movieResp, err := protoMovie.IsMovieExist(ctx, &protoServices.IdRequest{Id: int32(favoriteMovie.Id)})
+	movieResp, err := protoMovie.GetMovieById(ctx, &protoServices.IdRequest{Id: movieId})
 	if err != nil {
-		log.Fatalf("Error calling IsMovieExist: %v", err)
+		log.Printf("Error getting the movie: %v", err)
+		return false
 	}
 
-	if !clientResp.Exist || !movieResp.Exist {
-		log.Fatalf("Client OR Movie does not exist")
+	foundClient := client.NewClientWithId(int(clientResp.Id), clientResp.FirstName, clientResp.LastName, clientResp.Email)
+	foundMovie := movie.NewMovieWithId(int(movieResp.Id), movieResp.Title, float64(movieResp.Price))
+
+	if IsFavorite(foundClient, foundMovie) {
+		log.Printf("%s is already in %s's favorites", foundMovie.Title, foundClient.FirstName)
+		return false
 	}
 
-	if IsFavorite(theClient, favoriteMovie) {
-		log.Fatalf("%s is already in %s's favorites", favoriteMovie.Title, theClient.FirstName)
-	}
-
-	favorite.AddFavoriteMovie(theClient, favoriteMovie)
+	favorite.AddFavoriteMovie(foundClient, foundMovie)
+	return true
 }
 
 // RemoveFavorite removes a movie from a client's favorites
-func RemoveFavorite(c client.Client, m movie.Movie) {
-	favorite.DeleteFavoriteMovie(c, m)
-}
+func removeFavoriteMovie(clientId int32, movieId int32) (success bool) {
+	conn, _ := openConnection()
+	defer closeConnection(conn)
 
-// GetFavoritesByClient retrieves all favorite movies for a specific client
-func GetFavoritesByClient(c client.Client) []movie.Movie {
-	return favorite.GetClientFavoriteMovies(c)
-}
+	protoClient := protoServices.NewClientProtoServiceClient(conn)
+	protoMovie := protoServices.NewMovieProtoServiceClient(conn)
 
-// GetFavoritesByMovie retrieves all clients who have favorited a specific movie
-func GetFavoritesByMovie(m movie.Movie) []client.Client {
-	panic("unimplemented")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	clientResp, err := protoClient.GetClientById(ctx, &protoServices.IdRequest{Id: clientId})
+	if err != nil {
+		log.Printf("Error Getting the client: %v\n", err)
+		return false
+	}
+
+	movieResp, err := protoMovie.GetMovieById(ctx, &protoServices.IdRequest{Id: movieId})
+	if err != nil {
+		log.Printf("Error getting the movie: %v", err)
+		return false
+	}
+
+	foundClient := client.NewClientWithId(int(clientResp.Id), clientResp.FirstName, clientResp.LastName, clientResp.Email)
+	foundMovie := movie.NewMovieWithId(int(movieResp.Id), movieResp.Title, float64(movieResp.Price))
+
+	if !IsFavorite(foundClient, foundMovie) {
+		log.Printf("%s is not in %s's favorites", foundMovie.Title, foundClient.FirstName)
+		return false
+	}
+
+	favorite.DeleteFavoriteMovie(foundClient, foundMovie)
+	return true
 }
 
 // IsFavorite checks if a movie is in a client's favorites
@@ -63,7 +127,7 @@ func IsFavorite(c client.Client, m movie.Movie) bool {
 	return favorite.IsFavorite(c, m)
 }
 
-func OpenConnection() (*grpc.ClientConn, error) {
+func openConnection() (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Could not connect: %v", err)
@@ -71,7 +135,7 @@ func OpenConnection() (*grpc.ClientConn, error) {
 	return conn, err
 }
 
-func CloseConnection(conn *grpc.ClientConn) {
+func closeConnection(conn *grpc.ClientConn) {
 	func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {

@@ -85,12 +85,6 @@ func GetMovieByTitle(title string) (Movie, error) {
 }
 
 func AddMovie(movie Movie) Movie {
-	exist, foundMovie := IsExist(movie)
-
-	if exist {
-		return foundMovie
-	}
-
 	db := handler.GetDatabaseConnection()
 	defer handler.CloseDBConnection(db)
 
@@ -109,12 +103,6 @@ func AddMovie(movie Movie) Movie {
 }
 
 func UpdateMovie(movie Movie) {
-	exist, _ := IsExist(movie)
-	if !exist {
-		log.Println("The movie does not exist")
-		return
-	}
-
 	db := handler.GetDatabaseConnection()
 	defer handler.CloseDBConnection(db)
 
